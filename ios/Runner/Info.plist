@@ -17,7 +17,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<!-- Reversed iOS client ID from Firebase (GoogleService-Info.plist). -->
-				<string>com.googleusercontent.apps.1050081373907-861da3e6a807cc3d25ee26</string>
+				<string>com.googleusercontent.apps.1050081373907-mj3tb4i112vto52r81qrvjhnkcii909u</string>
 			</array>
 		</dict>
 	</array>

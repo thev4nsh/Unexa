@@ -60,20 +60,20 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyAE_i3XRLgyjsKkr2SCK_0CXayHm8DvW5w',
-    appId: '1:1050081373907:ios:861da3e6a807cc3d25ee26',
+    appId: '1:1050081373907:ios:6ead0886bcfdcb9225ee26',
     messagingSenderId: '1050081373907',
     projectId: 'unexa-3c465',
     storageBucket: 'unexa-3c465.firebasestorage.app',
-    iosBundleId: 'com.example.unexa',
+    iosBundleId: 'com.unexa.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyAE_i3XRLgyjsKkr2SCK_0CXayHm8DvW5w',
-    appId: '1:1050081373907:ios:861da3e6a807cc3d25ee26',
+    appId: '1:1050081373907:ios:6ead0886bcfdcb9225ee26',
     messagingSenderId: '1050081373907',
     projectId: 'unexa-3c465',
     storageBucket: 'unexa-3c465.firebasestorage.app',
-    iosBundleId: 'com.example.unexa',
+    iosBundleId: 'com.unexa.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
