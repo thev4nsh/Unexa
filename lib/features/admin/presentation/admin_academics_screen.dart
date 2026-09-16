@@ -130,7 +130,7 @@ class AdminAcademicsScreen extends ConsumerWidget {
                         items: departments
                             .map((item) => DropdownMenuItem(
                                   value: item.id,
-                                  child: Text(item.code.isEmpty ? item.name : '${item.name} (${item.code})',
+                                  child: Text(item.code.isEmpty ? item.name : '${item.code} · ${item.name}',
                                       overflow: TextOverflow.ellipsis),
                                 ))
                             .toList(),
@@ -604,7 +604,7 @@ Future<void> _showEditSimpleDialog(
                       items: departments
                           .map((item) => DropdownMenuItem(
                                 value: item.id,
-                                child: Text(item.code.isEmpty ? item.name : '${item.name} (${item.code})',
+                                child: Text(item.code.isEmpty ? item.name : '${item.code} · ${item.name}',
                                     overflow: TextOverflow.ellipsis),
                               ))
                           .toList(),
@@ -720,7 +720,7 @@ Future<void> _showEditBatchDialog(
                     items: departments
                         .map((item) => DropdownMenuItem(
                               value: item.id,
-                              child: Text(item.code.isEmpty ? item.name : '${item.name} (${item.code})',
+                              child: Text(item.code.isEmpty ? item.name : '${item.code} · ${item.name}',
                                   overflow: TextOverflow.ellipsis),
                             ))
                         .toList(),

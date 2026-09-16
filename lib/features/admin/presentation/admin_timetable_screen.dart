@@ -490,16 +490,18 @@ class _AdminTimetableScreenState extends ConsumerState<AdminTimetableScreen> {
       return (pickedId!, pickedName!);
     }
 
-    Future<void> pickTime(TextEditingController controller) async {
-      final parsed = DateFormatter.parseMinutesFromMidnight(controller.text) ?? 540;
+    /// Returns the picked time formatted for display, or null when cancelled.
+    /// The caller assigns it inside setDialogState so the field refreshes
+    /// immediately — Text() in an InputDecorator doesn't listen to controllers.
+    Future<String?> pickTime(String currentText) async {
+      final parsed = DateFormatter.parseMinutesFromMidnight(currentText) ?? 540;
       final initial = TimeOfDay(hour: parsed ~/ 60, minute: parsed % 60);
       final picked = await showTimePicker(context: rootContext, initialTime: initial);
-      if (picked != null) {
-        final hour12 = picked.hourOfPeriod == 0 ? 12 : picked.hourOfPeriod;
-        final amPm = picked.period == DayPeriod.am ? 'AM' : 'PM';
-        final minuteStr = picked.minute.toString().padLeft(2, '0');
-        controller.text = '$hour12:$minuteStr $amPm';
-      }
+      if (picked == null) return null;
+      final hour12 = picked.hourOfPeriod == 0 ? 12 : picked.hourOfPeriod;
+      final amPm = picked.period == DayPeriod.am ? 'AM' : 'PM';
+      final minuteStr = picked.minute.toString().padLeft(2, '0');
+      return '$hour12:$minuteStr $amPm';
     }
 
     showDialog(
@@ -536,7 +538,7 @@ class _AdminTimetableScreenState extends ConsumerState<AdminTimetableScreen> {
                       items: departments
                           .map((item) => DropdownMenuItem(
                                 value: item.id,
-                                child: Text(item.code.isEmpty ? item.name : '${item.name} (${item.code})',
+                                child: Text(item.code.isEmpty ? item.name : '${item.code} · ${item.name}',
                                     overflow: TextOverflow.ellipsis),
                               ))
                           .toList(),
@@ -661,9 +663,11 @@ class _AdminTimetableScreenState extends ConsumerState<AdminTimetableScreen> {
                         items: subjects
                             .map((item) => DropdownMenuItem(
                                   value: item.id,
+                                  // Code FIRST so it stays visible even when a
+                                  // long name gets ellipsized in the dropdown.
                                   child: Text(item.code == null || item.code!.isEmpty
                                       ? item.name
-                                      : '${item.name} (${item.code})',
+                                      : '${item.code} · ${item.name}',
                                     overflow: TextOverflow.ellipsis),
                                 ))
                             .toList(),
@@ -726,7 +730,12 @@ class _AdminTimetableScreenState extends ConsumerState<AdminTimetableScreen> {
                   children: [
                     Expanded(
                       child: InkWell(
-                        onTap: () => pickTime(startController),
+                        onTap: () async {
+                          final formatted = await pickTime(startController.text);
+                          if (formatted != null) {
+                            setDialogState(() => startController.text = formatted);
+                          }
+                        },
                         child: InputDecorator(
                           decoration: const InputDecoration(labelText: 'Start'),
                           child: Text(startController.text),
@@ -736,7 +745,12 @@ class _AdminTimetableScreenState extends ConsumerState<AdminTimetableScreen> {
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: InkWell(
-                        onTap: () => pickTime(endController),
+                        onTap: () async {
+                          final formatted = await pickTime(endController.text);
+                          if (formatted != null) {
+                            setDialogState(() => endController.text = formatted);
+                          }
+                        },
                         child: InputDecorator(
                           decoration: const InputDecoration(labelText: 'End'),
                           child: Text(endController.text),
