@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider paths for the in-app updater: the downloaded update APK
+     is shared with the system package installer through this provider. -->
+<paths>
+    <external-path name="external_files" path="." />
+    <files-path name="internal_files" path="." />
+</paths>

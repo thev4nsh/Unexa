@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function userData(collegeId) {
+      return firestore.get(
+        /databases/(default)/documents/colleges/$(collegeId)/users/$(request.auth.uid)
+      ).data;
+    }
+
+    function isApprovedMember(collegeId) {
+      return isAuthenticated() &&
+        userData(collegeId).collegeId == collegeId &&
+        userData(collegeId).accountStatus == 'active';
+    }
+
+    function isStaff(collegeId) {
+      return isApprovedMember(collegeId) &&
+        userData(collegeId).role in ['owner', 'admin', 'co_admin'];
+    }
+
+    // Tenant scoped storage
+    match /colleges/{collegeId} {
+      
+      // College branding logo
+      match /branding/{allPaths=**} {
+        // Anyone authenticated can view college logo
+        allow read: if isAuthenticated();
+        // Uploads allowed with image content type check and size limit (max 5MB)
+        allow write: if isStaff(collegeId) &&
+          request.resource.size < 5 * 1024 * 1024 &&
+          request.resource.contentType.matches('image/.*');
+      }
+
+      // Official Documents (PDF timetables, holiday calendars)
+      match /documents/{documentId}/{fileName} {
+        // Verified college members can download documents
+        allow read: if isApprovedMember(collegeId);
+        // Only staff can upload official PDF files (max 20MB)
+        allow write: if isStaff(collegeId) &&
+          request.resource.size < 20 * 1024 * 1024 &&
+          (request.resource.contentType == 'application/pdf' || fileName.matches('.*\\.pdf'));
+      }
+    }
+  }
+}

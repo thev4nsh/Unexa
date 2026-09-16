@@ -1,0 +1,2531 @@
+You are the lead Flutter + Firebase architect and senior full-stack engineer.
+
+I am building a production-quality Flutter application called:
+
+UNEXA
+
+Tagline:
+"Your Campus. One Place."
+
+The application is a multi-institute campus information platform. It will initially be used by one college, but the architecture MUST be designed from day one as a secure multi-tenant SaaS platform so that UNEXA can later be sold to multiple colleges/institutes.
+
+IMPORTANT:
+- This is an EXISTING Flutter project.
+- DO NOT blindly recreate or overwrite the project.
+- First inspect the entire existing project structure and configuration.
+- Understand what is already implemented.
+- Preserve working configuration unless there is a genuine reason to change it.
+- Make changes incrementally.
+- After every major phase, run analysis/tests/build checks and fix errors.
+- Do not leave pseudo-code, TODO placeholders, fake implementations, or unfinished screens.
+- Do not hard-code college-specific information.
+- Everything that can change must come from Firebase/admin configuration.
+- The application must be production-oriented, scalable, secure, maintainable and polished.
+
+==================================================
+1. EXISTING PROJECT
+==================================================
+
+The Flutter project is located at:
+
+C:\Users\LOKI\Desktop\unexa
+
+Current application ID:
+
+com.unexa.app
+
+Firebase project:
+
+Unexa
+Project ID:
+unexa-3c465
+
+Firebase Android application is already configured.
+
+Firebase configuration already exists.
+
+The project already has Firebase Core configured.
+
+Firebase packages currently installed/expected:
+
+- firebase_core
+- firebase_auth
+- cloud_firestore
+- google_sign_in
+
+Do NOT break the existing Firebase configuration.
+
+The app must ultimately support:
+
+- Android
+- iOS
+
+The architecture should also remain Flutter-platform friendly so web/admin interfaces can be added later if appropriate.
+
+==================================================
+2. MAIN PRODUCT VISION
+==================================================
+
+UNEXA should become a campus information platform where students receive everything important about their college in one place.
+
+Student features:
+
+- Google / institute account authentication
+- Institute account verification
+- College-specific onboarding
+- Today's timetable
+- Upcoming class
+- Class/lab details
+- Official timetable PDF
+- Official holiday list PDF
+- Academic calendar
+- Announcements
+- Targeted announcements
+- Push notifications
+- Profile
+- Notification preferences
+- College branding
+- Smooth modern UI
+
+NO ATTENDANCE FEATURE.
+
+Do not add attendance unless explicitly requested later.
+
+==================================================
+3. MULTI-TENANT SAAS ARCHITECTURE
+==================================================
+
+UNEXA MUST NOT be designed as a single-college hard-coded application.
+
+Architecture:
+
+UNEXA PLATFORM
+|
++-- College A
+|   +-- Admin
+|   +-- Co-Admin
+|   +-- Moderators
+|   +-- Students
+|   +-- Departments
+|   +-- Batches
+|   +-- Years/Semesters
+|   +-- Sections
+|   +-- Classes
+|   +-- Timetable
+|   +-- Calendar
+|   +-- Announcements
+|   +-- Documents
+|   +-- Branding
+|   +-- Audit Logs
+|
++-- College B
+|
++-- College C
+|
++-- etc.
+
+Every college must have strict data isolation.
+
+A student from College A MUST NEVER be able to access College B data.
+
+An administrator from College A MUST NOT be able to modify College B data.
+
+The platform Owner/SuperAdmin is the only role with global platform-level access.
+
+Use a robust tenant-aware data model.
+
+Every important document/data record should have a collegeId/tenant relationship.
+
+Do not trust collegeId supplied by the client for privileged operations.
+
+Validate tenant access server-side and through Firestore Security Rules.
+
+==================================================
+4. USER ROLES
+==================================================
+
+Implement these roles:
+
+1. OWNER / SUPER ADMIN
+2. ADMIN
+3. CO_ADMIN
+4. MODERATOR
+5. STUDENT
+
+Hierarchy:
+
+OWNER
+  >
+ADMIN
+  >
+CO_ADMIN
+  >
+MODERATOR
+  >
+STUDENT
+
+However, do NOT rely only on hierarchy.
+
+Use explicit permissions where appropriate.
+
+OWNER:
+- Full platform access
+- Create colleges
+- Suspend/reactivate colleges
+- Manage college configuration
+- Create/invite initial college administrators
+- Global platform administration
+- Override any decision
+- View global audit information
+- Highest authority
+
+ADMIN:
+- Full operational control within assigned college
+- Manage students
+- Manage verification
+- Manage moderators
+- Manage batches
+- Manage departments/programs
+- Manage classes
+- Manage timetable
+- Manage calendar
+- Manage announcements
+- Manage documents
+- Manage college branding
+- View audit logs
+- Ban/unban students
+- Override moderator decisions
+
+CO_ADMIN:
+- Broad operational access within assigned college
+- See approval list
+- Approve/reject according to permissions
+- Manage students
+- Manage batches
+- Manage departments/programs
+- Manage classes
+- Manage class timings
+- Manage timetable
+- Manage calendar
+- Manage announcements
+- Manage documents
+- View audit logs
+
+By default, Co-Admin should NOT:
+- create/delete Owner
+- create/delete Admin
+- modify protected platform settings
+- transfer college ownership
+- perform Owner-level actions
+
+MODERATOR:
+ONLY moderation/verification responsibilities.
+
+Moderator can:
+- View pending verification requests
+- Approve
+- Reject
+- Suspend verification
+- Ban students
+- Unban moderator-level bans
+- View verification history
+- Search/filter moderation records
+
+Moderator CANNOT:
+- Manage timetable
+- Manage batches
+- Manage classes
+- Manage calendar
+- Manage PDFs
+- Manage announcements
+- Change protected roles
+- Change college branding
+
+STUDENT:
+- Read authorized college information
+- View own profile
+- View own timetable
+- View relevant announcements
+- View calendar
+- View authorized documents
+- Receive notifications
+- Manage own notification preferences
+- Cannot modify privileged data
+
+==================================================
+5. SECURITY REQUIREMENTS
+==================================================
+
+SECURITY IS CRITICAL.
+
+Never trust Flutter/client-side UI for authorization.
+
+A hidden button is NOT security.
+
+A disabled button is NOT security.
+
+A role stored only in local storage is NOT security.
+
+A malicious user must NOT be able to modify Firestore data to become Admin.
+
+A malicious user must NOT be able to modify their own:
+- role
+- collegeId
+- approval status
+- ban status
+- permissions
+- admin privileges
+
+Use:
+
+- Firebase Authentication
+- Firestore Security Rules
+- Cloud Functions
+- Firebase Admin SDK where required
+- server-side authorization
+- tenant isolation
+- custom claims where appropriate
+- append-only audit logs
+- server timestamps
+
+Sensitive role/permission changes should be performed through trusted backend code / Cloud Functions rather than allowing arbitrary client writes.
+
+Design secure Firestore rules.
+
+Rules must verify:
+- authenticated user
+- college membership
+- correct role
+- correct permission
+- target tenant
+- ownership where applicable
+- allowed state transitions
+
+Prevent privilege escalation.
+
+Prevent cross-college reads/writes.
+
+Prevent students from modifying other users.
+
+Prevent moderators from performing admin-only actions.
+
+Prevent Co-Admins from performing Owner-only actions.
+
+==================================================
+6. BAN SYSTEM
+==================================================
+
+Do NOT use only:
+
+banned: true
+
+Use a structured ban model.
+
+Example concept:
+
+accountStatus:
+- active
+- pending
+- rejected
+- suspended
+- banned
+
+ban:
+    isActive
+    level:
+        moderator
+        admin
+        owner
+    bannedByUid
+    bannedByRole
+    reason
+    createdAt
+    updatedAt
+
+IMPORTANT:
+
+If a Moderator bans a student:
+
+Moderator can later unban that student.
+
+If an Admin bans a student:
+
+Moderator CANNOT unban that student.
+
+If Owner bans a student:
+
+Moderator CANNOT unban that student.
+
+The UI must clearly show:
+
+"⚠️ This account was banned by an administrator/owner. Moderators cannot remove this restriction."
+
+Disable the moderator unban action in this case.
+
+Admin can override moderator decisions.
+
+Owner can override everything.
+
+Never destroy historical decisions.
+
+Keep decision history.
+
+==================================================
+7. AUDIT LOGGING
+==================================================
+
+Every sensitive action must be logged.
+
+Audit logs must include, where appropriate:
+
+- collegeId
+- actor UID
+- actor name
+- actor email
+- actor role
+- action
+- target UID/document
+- target name/email where appropriate
+- timestamp
+- reason
+- old values
+- new values
+- metadata
+
+Examples:
+
+ADMIN_APPROVED_STUDENT
+ADMIN_REJECTED_STUDENT
+ADMIN_BANNED_STUDENT
+ADMIN_UNBANNED_STUDENT
+
+CO_ADMIN_APPROVED_STUDENT
+CO_ADMIN_REJECTED_STUDENT
+
+MODERATOR_APPROVED_STUDENT
+MODERATOR_REJECTED_STUDENT
+MODERATOR_BANNED_STUDENT
+MODERATOR_UNBANNED_STUDENT
+MODERATOR_SUSPENDED_REQUEST
+
+ROLE_CHANGED
+PERMISSION_CHANGED
+
+TIMETABLE_CREATED
+TIMETABLE_UPDATED
+TIMETABLE_DELETED
+
+ANNOUNCEMENT_CREATED
+ANNOUNCEMENT_UPDATED
+ANNOUNCEMENT_DELETED
+
+CALENDAR_EVENT_CREATED
+CALENDAR_EVENT_UPDATED
+CALENDAR_EVENT_DELETED
+
+DOCUMENT_UPLOADED
+DOCUMENT_REPLACED
+DOCUMENT_DELETED
+
+BRANDING_UPDATED
+
+ACCOUNT_SUSPENDED
+ACCOUNT_REACTIVATED
+
+UNAUTHORIZED_ACTION_ATTEMPT
+
+Audit logs should be append-only from normal client applications.
+
+Users must not be able to edit their own audit records.
+
+Admin should be able to view relevant audit history.
+
+Owner should have global audit visibility.
+
+==================================================
+8. AUTHENTICATION
+==================================================
+
+Use Firebase Authentication with Google Sign-In.
+
+The user should NOT manually type:
+- name
+- email
+- profile photo
+
+Google/Firebase should automatically provide:
+- display name
+- email
+- profile photo
+- UID
+
+Login screen:
+
+UNEXA logo
+
+"Your Campus. One Place."
+
+Button:
+
+Continue with Google
+
+Also communicate:
+
+"Use your institute Google account"
+
+The architecture should support configurable institute domains.
+
+DO NOT hard-code:
+
+@iitkalyani.ac.in
+
+Instead, college configuration should contain allowed domains.
+
+Example:
+
+college:
+    id
+    name
+    allowedEmailDomains:
+        - example.edu
+        - students.example.edu
+
+The selected college's allowed domains must be checked.
+
+IMPORTANT:
+Domain validation must not rely only on Flutter.
+
+The trusted backend must validate:
+- selected college
+- authenticated user's email
+- allowed domain
+- college membership
+
+==================================================
+9. COLLEGE SELECTION
+==================================================
+
+On first login, student selects their college.
+
+Example:
+
+Select your college
+
+[ Search colleges ]
+
+College A
+College B
+College C
+
+After selection:
+
+Continue with Google
+
+The selected college is only a candidate context.
+
+The backend MUST independently verify the selected college and user's domain.
+
+A malicious user must not be able to claim another college by editing client data.
+
+==================================================
+10. VERIFICATION WORKFLOW
+==================================================
+
+FIRST LOGIN:
+
+Student:
+
+1. Selects college
+2. Signs in with Google
+3. Firebase Authentication creates/authenticates account
+4. Backend validates email/domain
+5. Backend creates verification request if valid
+6. Student status becomes:
+
+pending
+
+Student sees:
+
+"Verification in progress"
+
+Message:
+
+"Your institute account has been successfully authenticated. Your UNEXA access request has been sent to the administrator. We’ll notify you once your account is approved."
+
+Do NOT ask for batch/year/department before approval unless absolutely required by architecture.
+
+After approval:
+
+Student receives:
+
+🎉 UNEXA Account Verified
+
+"Your account has been approved. Welcome to UNEXA!"
+
+Then student completes academic onboarding.
+
+==================================================
+11. STUDENT ACADEMIC ONBOARDING
+==================================================
+
+After approval ask for:
+
+- Department / Program
+- Batch
+- Year
+- Semester if configured
+- Section if configured
+
+These MUST be dynamic.
+
+Do NOT hard-code:
+
+CSE
+ECE
+EEE
+A
+B
+C
+1st year
+2nd year
+
+Instead, Admin/Co-Admin creates them in Firebase.
+
+Example:
+
+Departments:
+CSE
+ECE
+EEE
+BCA
+
+Batches:
+2024
+2025
+2026
+
+Sections:
+A
+B
+C
+
+Years:
+1
+2
+3
+4
+
+The exact structure must be configurable per college.
+
+Some colleges may use:
+- Program
+- Branch
+- Batch
+- Semester
+- Section
+
+Others may use different structures.
+
+Design a flexible academic configuration system.
+
+==================================================
+12. DYNAMIC ADMIN CONFIGURATION
+==================================================
+
+Admin/Co-Admin must be able to dynamically create academic structures.
+
+Use + buttons.
+
+Examples:
+
++ Add Department
+
++ Add Batch
+
++ Add Section
+
++ Add Class
+
++ Add Timetable Entry
+
+Admin must not need to update/release the Flutter app to add:
+
+- new department
+- new batch
+- new section
+- new class
+- new subject
+- new timetable
+
+Everything should come from Firebase.
+
+==================================================
+13. COLLEGE BRANDING
+==================================================
+
+Every college has its own branding.
+
+Fields:
+
+- collegeName
+- logo
+- primaryColor
+- secondaryColor
+
+Admin can manage:
+
+College Logo
+College Name
+Primary Color
+Secondary Color
+
+Owner can override college branding.
+
+Co-Admin does not automatically get branding control unless permission is explicitly granted.
+
+Student app dynamically uses the selected college's branding.
+
+Examples:
+- login/college card
+- dashboard
+- headers
+- buttons
+- accents
+- cards where appropriate
+
+Do not hard-code colors.
+
+Use a safe fallback theme if branding data is missing.
+
+Logo should eventually be stored in Firebase Storage.
+
+Firestore should store metadata/URL.
+
+==================================================
+14. STUDENT HOME SCREEN
+==================================================
+
+Create a beautiful modern student dashboard.
+
+Show:
+
+- College logo/name
+- Greeting
+- Today's date
+- Today's classes
+- Next upcoming class
+- Announcements preview
+- Calendar/important event preview
+
+Today's timetable should clearly show:
+
+Subject
+Class/Lab
+Start time
+End time
+Room/Lab
+Faculty if configured
+
+Example:
+
+10:00 AM – 11:00 AM
+Database Management Systems
+Room 204
+Class
+
+11:00 AM – 1:00 PM
+Computer Networks Lab
+Lab 2
+Lab
+
+Differentiate Class and Lab visually but minimally.
+
+If there are no classes:
+
+🎉 No classes today!
+
+If today is a holiday:
+
+🏖️ Today is a holiday.
+
+Do not show normal class notifications for holidays.
+
+==================================================
+15. TIMETABLE
+==================================================
+
+Timetable is fully dynamic.
+
+Each timetable entry may contain:
+
+- collegeId
+- departmentId
+- batchId
+- year/semester
+- sectionId
+- subjectId
+- subjectName
+- type: class/lab
+- faculty
+- room
+- day
+- startTime
+- endTime
+- active
+- effectiveFrom
+- effectiveUntil
+- createdBy
+- updatedBy
+- createdAt
+- updatedAt
+
+Support timetable changes.
+
+Prefer a version-aware design where practical so historical timetable data can remain auditable.
+
+Student should only see timetable applicable to their academic scope.
+
+Admin/Co-Admin can create/update/delete timetable entries according to permissions.
+
+Every change must be audited.
+
+==================================================
+16. DAILY 7 AM NOTIFICATION
+==================================================
+
+Every morning at approximately 7:00 AM local college time:
+
+Send each approved student a notification containing their day's schedule.
+
+Example:
+
+📚 Good Morning!
+
+Today's classes:
+
+10:00 AM — DBMS
+12:00 PM — Computer Networks
+2:00 PM — CN Lab
+
+Use FCM.
+
+Do not depend entirely on Flutter being open/backgrounded.
+
+Use backend scheduling such as:
+- Cloud Functions
+- Cloud Scheduler
+- appropriate Firebase backend architecture
+
+Timezone must be configurable per college.
+
+Default can be:
+
+Asia/Kolkata
+
+but DO NOT hard-code it as the only supported timezone.
+
+Store timezone per college.
+
+If:
+- holiday
+- no classes
+
+then suppress normal schedule notification or send an appropriate holiday/no-class message according to configuration.
+
+==================================================
+17. ONE-HOUR CLASS REMINDER
+==================================================
+
+Send an FCM notification approximately one hour before an upcoming class.
+
+Example:
+
+⏰ Class Reminder
+
+DBMS starts in 1 hour.
+
+Room 204
+
+For labs:
+
+🧪 Lab Reminder
+
+Computer Networks Lab starts in 1 hour.
+
+Lab 2
+
+Do not send reminders for:
+- cancelled classes
+- inactive timetable entries
+- holidays
+
+Prevent duplicate notifications.
+
+Use server-side scheduling where appropriate.
+
+==================================================
+18. FCM
+==================================================
+
+Implement Firebase Cloud Messaging.
+
+Store device tokens securely.
+
+Support:
+- Android
+- iOS
+
+Handle:
+- foreground notifications
+- background notifications
+- notification tap
+- deep linking into relevant screen
+
+Notification types:
+
+ACCOUNT_APPROVED
+ANNOUNCEMENT
+CLASS_REMINDER
+DAILY_SCHEDULE
+IMPORTANT_EVENT
+
+Design a clean notification service abstraction.
+
+Handle token refresh.
+
+Allow users to manage notification preferences.
+
+==================================================
+19. IOS COMPATIBILITY
+==================================================
+
+The app MUST be designed for both Android and iOS.
+
+Do not write Android-only Flutter logic unless unavoidable.
+
+Google Sign-In must be configured properly for iOS.
+
+Prepare for:
+
+- GoogleService-Info.plist
+- iOS Firebase configuration
+- URL schemes required by Google Sign-In
+- Push notification permissions
+- APNs
+- Firebase Messaging iOS integration
+- notification permission prompts
+- background notification behavior
+- appropriate iOS capabilities
+
+When implementing FCM, account for APNs on iOS.
+
+Do not assume Android notification behavior applies to iOS.
+
+Use platform-aware code only where required.
+
+==================================================
+20. DOCUMENTS
+==================================================
+
+Official documents:
+
+- Timetable PDF
+- Holiday List PDF
+
+Later architecture can support more document types.
+
+Admin/Co-Admin can:
+
+Upload
+Replace
+Delete
+Publish
+
+Store actual files in Firebase Storage.
+
+Store metadata in Firestore.
+
+Metadata example:
+
+documentId
+collegeId
+type
+title
+storagePath
+downloadUrl
+version
+uploadedBy
+uploadedAt
+isActive
+
+Access must be authorized.
+
+Do not expose another college's documents.
+
+==================================================
+21. ACADEMIC CALENDAR
+==================================================
+
+Create a Calendar section.
+
+Admin/Co-Admin can add:
+
+- Holiday
+- Exam
+- Academic event
+- College event
+- Important date
+- Other configurable event types
+
+Each event:
+
+- collegeId
+- title
+- description
+- date
+- startTime if needed
+- endTime if needed
+- type
+- target scope if applicable
+- createdBy
+- updatedBy
+- createdAt
+- updatedAt
+
+Students see only relevant events.
+
+If an event is a holiday, timetable notification logic should respect it.
+
+==================================================
+22. ANNOUNCEMENTS
+==================================================
+
+Announcements can be:
+
+1. College-wide
+
+2. Targeted
+
+Targeting may include:
+
+- Department
+- Program
+- Batch
+- Year
+- Semester
+- Section
+
+Example:
+
+All students
+
+or
+
+CSE only
+
+or
+
+2025 batch
+
+or
+
+CSE + 2025 + Section A
+
+The targeting system must be dynamic.
+
+Do not hard-code targeting values.
+
+Announcement fields:
+
+- collegeId
+- title
+- body
+- author
+- createdBy
+- targetScope
+- targetIds
+- publishAt
+- expiresAt
+- isPublished
+- createdAt
+- updatedAt
+
+Admin/Co-Admin can create/edit/delete announcements.
+
+Moderator cannot manage announcements by default.
+
+Send FCM for relevant students.
+
+Prevent students from receiving announcements for another college.
+
+==================================================
+23. APPROVAL MANAGEMENT SCREEN
+==================================================
+
+Admin and Co-Admin MUST both have access to approval management.
+
+Screen:
+
+Verification Requests
+
+Search:
+
+🔍 Search by name/email
+
+Filters:
+
+[ All ▼ ]
+
+College
+Department
+Batch
+Status
+Actioned by
+Date
+
+Tabs:
+
+Pending
+Approved
+Rejected
+Banned
+
+Each request card should show:
+
+Profile photo
+Name
+Email
+College
+Department
+Batch
+Year/semester
+Section
+Current status
+Requested date
+Actioned by
+Action date
+
+Actions according to role:
+
+Approve
+Reject
+Suspend
+Ban
+Unban where permitted
+
+Show confirmation dialogs for destructive actions.
+
+Require a reason for:
+- rejection
+- ban
+- suspension
+- potentially override actions
+
+==================================================
+24. VERIFICATION HISTORY
+==================================================
+
+Do not overwrite history.
+
+Example:
+
+Student requested:
+12 Sept 2026
+
+Moderator rejected:
+12 Sept 2026
+Reason: ...
+
+Admin approved:
+13 Sept 2026
+Reason: ...
+
+Later Admin banned:
+20 Sept 2026
+Reason: ...
+
+Display this history to authorized staff.
+
+Admin should be able to see which moderator performed an action.
+
+Co-Admin should see appropriate audit/verification information according to permissions.
+
+==================================================
+25. REAL-TIME APPROVAL
+==================================================
+
+Use Firestore real-time listeners where useful.
+
+When an Admin approves a student:
+
+Student app should detect the status change even if currently open.
+
+Then:
+- update UI
+- show success state
+- optionally trigger FCM notification
+- allow onboarding
+
+FCM is the notification mechanism.
+
+Firestore realtime state is the source of truth.
+
+Do not rely on FCM alone to determine account authorization.
+
+==================================================
+26. FIRESTORE DATA MODEL
+==================================================
+
+Design a scalable Firestore schema.
+
+A possible starting structure:
+
+colleges/{collegeId}
+
+colleges/{collegeId}/users/{uid}
+
+colleges/{collegeId}/departments/{departmentId}
+
+colleges/{collegeId}/programs/{programId}
+
+colleges/{collegeId}/batches/{batchId}
+
+colleges/{collegeId}/sections/{sectionId}
+
+colleges/{collegeId}/subjects/{subjectId}
+
+colleges/{collegeId}/classes/{classId}
+
+colleges/{collegeId}/timetable/{entryId}
+
+colleges/{collegeId}/announcements/{announcementId}
+
+colleges/{collegeId}/calendarEvents/{eventId}
+
+colleges/{collegeId}/documents/{documentId}
+
+colleges/{collegeId}/auditLogs/{logId}
+
+colleges/{collegeId}/verificationRequests/{requestId}
+
+platform-level collections can be used for:
+
+platform/...
+colleges/...
+
+or an equivalent scalable design.
+
+Choose the best architecture after inspecting requirements.
+
+Explain why you choose the schema.
+
+Optimize for:
+- tenant isolation
+- security
+- query efficiency
+- scalability
+- maintainability
+- Firestore pricing efficiency
+
+Do not create an unnecessarily fragmented schema.
+
+==================================================
+27. FIRESTORE INDEXES
+==================================================
+
+Create required Firestore indexes.
+
+Think about queries such as:
+
+- pending verification by college
+- pending verification sorted by createdAt
+- students by batch
+- timetable by day
+- timetable by batch/year/section
+- announcements by target
+- calendar by date
+- audit logs by actor
+- audit logs by action
+- audit logs by date
+
+Provide/update:
+
+firestore.indexes.json
+
+where necessary.
+
+==================================================
+28. FIRESTORE SECURITY RULES
+==================================================
+
+Create strong production-oriented:
+
+firestore.rules
+
+Rules should enforce:
+
+Authentication required.
+
+Tenant isolation.
+
+Role authorization.
+
+Permission authorization.
+
+Students:
+- read only authorized data
+- update only allowed own profile fields
+- cannot change role
+- cannot change collegeId
+- cannot approve themselves
+- cannot modify approval state
+
+Moderators:
+- moderation actions only
+
+Co-Admins:
+- configured operational permissions
+
+Admins:
+- full college operational control
+
+Owner:
+- global access where appropriate
+
+Never allow clients to write privileged role fields directly.
+
+Use custom claims and/or trusted backend verification appropriately.
+
+If custom claims are used, explain synchronization strategy.
+
+==================================================
+29. CLOUD FUNCTIONS / BACKEND
+==================================================
+
+Create a proper Firebase backend structure.
+
+Use Cloud Functions for trusted operations such as:
+
+- approval
+- rejection
+- banning
+- unbanning
+- role assignment
+- role changes
+- tenant creation
+- privileged configuration
+- audit logging
+- notification dispatch
+- scheduled daily timetable notification
+- class reminders
+- announcement notifications
+
+Do not put Admin SDK credentials inside Flutter.
+
+Never ship service account credentials with the mobile app.
+
+Cloud Functions must validate:
+- caller authentication
+- caller role
+- caller college
+- caller permissions
+- target college
+- allowed state transition
+
+==================================================
+30. ROLE ASSIGNMENT
+==================================================
+
+Role assignment is extremely sensitive.
+
+A user must NEVER be able to do:
+
+update role = admin
+
+from Flutter.
+
+Use trusted backend operations.
+
+For example:
+
+Owner creates/invites initial Admin.
+
+Admin may create/manage permitted Moderators.
+
+Co-Admin role changes should be permission controlled.
+
+Every role change creates an audit log.
+
+Store:
+- oldRole
+- newRole
+- changedBy
+- changedAt
+- reason
+
+==================================================
+31. COLLEGE ONBOARDING
+==================================================
+
+Design platform-level college onboarding.
+
+Owner should be able to create a college with:
+
+- collegeName
+- logo
+- primaryColor
+- secondaryColor
+- allowedEmailDomains
+- timezone
+- active/suspended status
+
+Then assign/invite initial Admin.
+
+Do NOT allow random users to create their own college and become its Admin.
+
+==================================================
+32. ADMIN / STAFF UI
+==================================================
+
+Create polished role-aware staff interfaces.
+
+Admin dashboard:
+
+Overview
+Students
+Verification
+Departments
+Programs
+Batches
+Sections
+Classes
+Timetable
+Announcements
+Calendar
+Documents
+Branding
+Audit Logs
+Settings
+
+Co-Admin dashboard:
+
+Overview
+Students
+Verification
+Departments
+Programs
+Batches
+Sections
+Classes
+Timetable
+Announcements
+Calendar
+Documents
+Audit Logs
+
+Only show screens/actions permitted by permissions.
+
+Moderator dashboard:
+
+Overview
+Verification
+Pending
+History
+Bans
+
+Do not clutter Moderator UI with admin-only functionality.
+
+==================================================
+33. UI / UX DESIGN
+==================================================
+
+The app must look like a modern premium product.
+
+Avoid:
+- generic Flutter demo appearance
+- excessive gradients
+- excessive rounded cards
+- random colors
+- huge shadows
+- clutter
+- unnecessary animations
+- "AI-generated" visual style
+- inconsistent spacing
+
+Use:
+- clean typography
+- consistent spacing
+- strong hierarchy
+- subtle elevation
+- responsive layouts
+- polished cards
+- modern navigation
+- clean empty states
+- clear loading states
+- excellent error states
+
+The design should feel like a real commercial SaaS/campus application.
+
+==================================================
+34. SMOOTH ANIMATIONS
+==================================================
+
+Animations are important.
+
+Use smooth, subtle animations.
+
+Examples:
+
+Login:
+- logo fade/scale
+- button transition
+- loading state
+
+Navigation:
+- smooth page transitions
+
+Dashboard:
+- cards gently fade/slide in
+- staggered list appearance where appropriate
+
+Timetable:
+- smooth expansion
+- class status transitions
+
+Approval:
+- approve/reject state animation
+- list updates smoothly
+
+Announcements:
+- subtle entry animations
+
+Calendar:
+- smooth month/date transitions
+
+Dialogs:
+- polished scale/fade
+
+Use Flutter's animation framework appropriately.
+
+Prefer:
+- AnimatedSwitcher
+- AnimatedContainer
+- TweenAnimationBuilder
+- FadeTransition
+- SlideTransition
+- ScaleTransition
+- Hero where appropriate
+- custom page transitions when useful
+
+Do NOT animate everything.
+
+Animations should feel:
+- fast
+- smooth
+- premium
+- purposeful
+
+Respect accessibility:
+- support reduced-motion preferences where practical.
+
+==================================================
+35. RESPONSIVE DESIGN
+==================================================
+
+The UI must work well on:
+
+- Android phones
+- iPhones
+- tablets
+- larger screens
+
+Avoid fixed widths.
+
+Use:
+- MediaQuery
+- LayoutBuilder
+- responsive constraints
+- adaptive navigation
+
+Do not assume a single screen size.
+
+==================================================
+36. THEME
+==================================================
+
+Implement a centralized design system.
+
+Use:
+
+ThemeData
+
+ColorScheme
+
+TextTheme
+
+custom spacing constants
+
+custom radius constants
+
+custom shadows/elevation
+
+College branding should dynamically modify appropriate theme elements.
+
+Support:
+- Light mode
+- Dark mode
+
+Respect system appearance where appropriate.
+
+Do not hard-code theme colors throughout widgets.
+
+==================================================
+37. STATE MANAGEMENT
+==================================================
+
+Choose a production-quality state management approach.
+
+Prefer a clean architecture such as:
+
+Riverpod
+
+or another modern, well-maintained approach if the existing project already uses something appropriate.
+
+Do not introduce unnecessary complexity.
+
+Separate:
+
+Presentation
+Domain/business logic
+Data/repositories
+Firebase services
+
+Avoid putting Firebase queries directly in every widget.
+
+==================================================
+38. PROJECT ARCHITECTURE
+==================================================
+
+Use a scalable structure.
+
+Example:
+
+lib/
+  core/
+    constants/
+    theme/
+    routing/
+    errors/
+    utils/
+    widgets/
+
+  features/
+    auth/
+    onboarding/
+    student/
+    timetable/
+    announcements/
+    calendar/
+    documents/
+    notifications/
+    admin/
+    moderator/
+    profile/
+
+  data/
+    models/
+    repositories/
+    services/
+
+  firebase/
+    ...
+
+Adapt the structure to the existing project instead of blindly copying it.
+
+Use:
+- models
+- repositories
+- services
+- providers/controllers
+- screens
+- reusable widgets
+
+Keep code modular.
+
+==================================================
+39. ERROR HANDLING
+==================================================
+
+Every Firebase operation must handle errors.
+
+Examples:
+
+No internet
+Firebase permission denied
+Authentication failure
+Google Sign-In cancellation
+Token failure
+Missing configuration
+Document unavailable
+Invalid data
+Server error
+
+Show user-friendly messages.
+
+Never expose raw Firebase stack traces to normal users.
+
+Log useful technical details for development/debugging.
+
+==================================================
+40. LOADING STATES
+==================================================
+
+Do not show blank screens while Firebase loads.
+
+Use polished loading UI.
+
+Examples:
+- skeleton loading
+- shimmer if appropriate
+- progress indicators
+- animated placeholders
+
+Avoid excessive spinners.
+
+==================================================
+41. EMPTY STATES
+==================================================
+
+Create meaningful empty states.
+
+Examples:
+
+No classes:
+"🎉 No classes today!"
+
+No announcements:
+"No announcements yet."
+
+No calendar events:
+"No events scheduled."
+
+No pending approvals:
+"You're all caught up."
+
+No documents:
+"No official documents available."
+
+==================================================
+42. SECURITY AGAINST CLIENT MANIPULATION
+==================================================
+
+Assume the client can be modified by an attacker.
+
+Therefore:
+
+Never trust:
+- role from SharedPreferences
+- collegeId from SharedPreferences
+- approval status from local storage
+- permissions from local storage
+- client-side email validation
+- hidden buttons
+- disabled buttons
+
+The backend must be the authority.
+
+At app startup:
+- authenticate
+- retrieve authoritative user state
+- verify college membership
+- verify account status
+- determine role/permissions
+- route accordingly
+
+If account becomes banned/suspended:
+- revoke/block access appropriately
+- show correct state
+- do not allow access merely because an old session exists
+
+==================================================
+43. ROUTING
+==================================================
+
+Create guarded routing.
+
+Possible routes:
+
+/login
+/college-selection
+/verification-pending
+/onboarding
+/student/home
+/student/timetable
+/student/calendar
+/student/announcements
+/student/documents
+/student/profile
+
+/admin/dashboard
+/admin/verification
+/admin/students
+/admin/timetable
+/admin/calendar
+/admin/announcements
+/admin/documents
+/admin/branding
+/admin/audit-logs
+
+/moderator/dashboard
+/moderator/verification
+/moderator/history
+/moderator/bans
+
+Routes must enforce authorization.
+
+Do not rely only on navigation visibility.
+
+==================================================
+44. SESSION HANDLING
+==================================================
+
+If the user is already authenticated:
+
+Check account state.
+
+If approved:
+go to appropriate dashboard.
+
+If pending:
+go to verification pending.
+
+If rejected:
+show appropriate state.
+
+If banned:
+show restricted access screen.
+
+If profile/onboarding incomplete:
+continue onboarding.
+
+Avoid forcing approved users to log in repeatedly.
+
+==================================================
+45. GOOGLE SIGN-IN
+==================================================
+
+Implement proper Firebase Google Sign-In.
+
+Handle:
+
+- first login
+- returning login
+- cancellation
+- account switching
+- invalid institute account
+- unauthorized domain
+- network failure
+
+Do not manually store passwords.
+
+Firebase Authentication is the identity source.
+
+Prepare the project for Android and iOS Google Sign-In configuration.
+
+Mention any SHA-1/SHA-256 requirements for Android configuration.
+
+For iOS, configure required Google Sign-In URL scheme correctly.
+
+==================================================
+46. FIREBASE STORAGE
+==================================================
+
+Use Firebase Storage for:
+
+- college logos
+- timetable PDFs
+- holiday PDFs
+- future official documents
+
+Storage paths must include tenant isolation.
+
+Example concept:
+
+colleges/{collegeId}/branding/logo
+colleges/{collegeId}/documents/{documentId}/file
+
+Storage rules must prevent cross-college access.
+
+Do not rely only on Firestore rules for Storage.
+
+==================================================
+47. NOTIFICATION ARCHITECTURE
+==================================================
+
+Build a NotificationService abstraction.
+
+Responsibilities:
+
+- request permission
+- register FCM
+- handle token refresh
+- store token
+- foreground messages
+- background messages
+- notification tap
+- deep linking
+- notification preferences
+
+Android:
+- notification channels where required
+
+iOS:
+- APNs integration
+- permission handling
+- Firebase Messaging setup
+
+Notification content should be generated server-side where appropriate.
+
+==================================================
+48. TIME / TIMEZONE
+==================================================
+
+Do NOT assume device timezone equals college timezone.
+
+College should have:
+
+timezone
+
+Example:
+
+Asia/Kolkata
+
+Use timezone-aware scheduling.
+
+Store timestamps using Firebase server timestamps where appropriate.
+
+Display times in appropriate college/user context.
+
+Handle daylight-saving time for colleges outside India.
+
+==================================================
+49. DATABASE QUERY EFFICIENCY
+==================================================
+
+Firestore is not SQL.
+
+Design queries carefully.
+
+Avoid downloading an entire college database to the client.
+
+Students should receive only data relevant to:
+
+- their college
+- their department/program
+- their batch
+- their year/semester
+- their section
+
+Use appropriate indexes.
+
+Paginate large lists.
+
+Use realtime listeners only where beneficial.
+
+Do not create listeners everywhere unnecessarily.
+
+==================================================
+50. CACHING / OFFLINE
+==================================================
+
+Use Firebase's offline capabilities where beneficial.
+
+Student should have a reasonable experience if connectivity briefly disappears.
+
+However, cached data must NEVER bypass authorization.
+
+Do not treat cached role/status as authoritative.
+
+==================================================
+51. ADMIN SEARCH / FILTERING
+==================================================
+
+Approval screen must support:
+
+Search:
+- name
+- email
+
+Filters:
+- college
+- department
+- batch
+- status
+- actioned by
+- date
+
+Implement pagination where necessary.
+
+Use Firestore-friendly query patterns.
+
+If combined filtering becomes expensive, design indexes/query strategy appropriately.
+
+==================================================
+52. DATA VALIDATION
+==================================================
+
+Validate all user input.
+
+Examples:
+
+College name
+Department
+Batch
+Section
+Subject
+Room
+Timetable times
+Announcement title/body
+Calendar dates
+
+Prevent:
+- empty required values
+- invalid time ranges
+- invalid dates
+- duplicate records where inappropriate
+
+Use server-side validation for privileged operations.
+
+==================================================
+53. DUPLICATE / RACE CONDITION PROTECTION
+==================================================
+
+Think about two admins approving the same student simultaneously.
+
+Use transactions/idempotent backend operations where appropriate.
+
+An approval operation should not produce:
+- duplicate audit logs
+- duplicate notifications
+- inconsistent states
+
+Notifications should be idempotent where possible.
+
+==================================================
+54. PRIVACY
+==================================================
+
+Only expose information necessary for the role.
+
+Students should not see:
+- internal audit logs
+- moderator notes
+- admin notes
+- internal security information
+- other students' sensitive information
+
+Moderators should only see information needed for moderation.
+
+Admins see more.
+
+Owner sees platform-level information.
+
+==================================================
+55. NO HARDCODED COLLEGE DATA
+==================================================
+
+This is extremely important.
+
+Do NOT write code such as:
+
+if college == "IIT Kalyani"
+
+Do NOT hard-code:
+
+CSE
+ECE
+BCA
+Batch 2025
+Section A
+College logo
+College colors
+
+All of these must be Firebase-configurable.
+
+The app should work for:
+
+College A
+College B
+College C
+
+without changing Flutter source code.
+
+==================================================
+56. PLATFORM OWNER ARCHITECTURE
+==================================================
+
+Design for a future Owner/SuperAdmin interface.
+
+Owner should be able to:
+
+- create college
+- configure college
+- add initial admin
+- suspend college
+- reactivate college
+- inspect platform metrics
+- manage platform settings
+- override college-level restrictions where appropriate
+
+Do not expose Owner functionality to normal users.
+
+==================================================
+57. FUTURE SCALABILITY
+==================================================
+
+Design so UNEXA can later support:
+
+- subscriptions
+- billing
+- college plans
+- usage limits
+- analytics
+- more document types
+- more notification types
+- web admin portal
+- college-specific customization
+- custom domains
+- additional authentication methods
+
+But DO NOT implement unnecessary future features now.
+
+Build clean extension points.
+
+==================================================
+58. LOGGING
+==================================================
+
+Use proper application logging.
+
+Development logs should help identify:
+
+Firebase errors
+authentication issues
+notification failures
+permission failures
+backend errors
+
+Do not log:
+- passwords
+- authentication secrets
+- sensitive tokens
+- private data unnecessarily
+
+==================================================
+59. TESTING
+==================================================
+
+Create meaningful tests.
+
+At minimum test:
+
+Authentication
+College selection
+Domain validation
+Pending verification
+Approval
+Rejection
+Ban
+Moderator unban restriction
+Admin override
+Tenant isolation
+Role protection
+Timetable filtering
+Holiday logic
+Announcement targeting
+Notification logic
+Routing guards
+
+Include unit tests for business logic.
+
+Include widget tests for important UI.
+
+Use Firebase emulator/testing strategy where practical.
+
+==================================================
+60. FIREBASE EMULATOR / DEVELOPMENT
+==================================================
+
+Where practical, structure backend/security code so Firebase Emulator Suite can be used during development.
+
+Do not require production data for every test.
+
+Provide clear instructions for:
+
+firebase emulators:start
+
+if Firebase CLI/backend setup is part of the project.
+
+==================================================
+61. FILES THAT MAY NEED TO EXIST
+==================================================
+
+Depending on the current project structure, configure appropriate files such as:
+
+firebase.json
+firestore.rules
+firestore.indexes.json
+storage.rules
+
+functions/
+  ...
+
+Do not create unnecessary files.
+
+==================================================
+62. DEPENDENCY MANAGEMENT
+==================================================
+
+Use stable compatible package versions.
+
+Before adding a package:
+
+Check whether an existing dependency already solves the requirement.
+
+Do not add ten packages for a simple feature.
+
+Avoid abandoned packages.
+
+Keep dependencies minimal and maintainable.
+
+==================================================
+63. PERFORMANCE
+==================================================
+
+Optimize for smoothness.
+
+Avoid unnecessary rebuilds.
+
+Use:
+- const widgets
+- efficient lists
+- pagination
+- memoization/provider patterns where appropriate
+- lazy loading
+- image caching where appropriate
+
+Avoid:
+- huge Firestore reads
+- unnecessary listeners
+- expensive build methods
+- excessive animations
+
+The app should feel fast on mid-range Android devices as well as iPhones.
+
+==================================================
+64. UI COPY
+==================================================
+
+Use professional concise text.
+
+Avoid awkward technical language.
+
+Examples:
+
+"Continue with Google"
+
+"Verification in progress"
+
+"Your account is waiting for administrator approval."
+
+"Account verified"
+
+"Welcome to UNEXA"
+
+"Today's Schedule"
+
+"Upcoming Class"
+
+"No classes today"
+
+"Today is a holiday"
+
+"Something went wrong"
+
+"Try again"
+
+==================================================
+65. DESIGN LANGUAGE
+==================================================
+
+The visual identity should feel:
+
+- modern
+- premium
+- minimal
+- trustworthy
+- academic
+- professional
+- friendly
+
+Not:
+
+- childish
+- overly futuristic
+- overly neon
+- overly animated
+- cluttered
+
+Use subtle motion and excellent spacing.
+
+==================================================
+66. ACCESSIBILITY
+==================================================
+
+Support:
+
+- readable text
+- sufficient contrast
+- semantic labels
+- scalable text where possible
+- touch targets
+- screen-reader-friendly controls
+- reduced-motion consideration
+
+Do not sacrifice accessibility for visual effects.
+
+==================================================
+67. IMPORTANT FIREBASE RULE
+==================================================
+
+Firebase Authentication determines identity.
+
+Firestore determines application data.
+
+Cloud Functions determine trusted privileged operations.
+
+Firestore Security Rules enforce access.
+
+Firebase Storage handles official files.
+
+FCM handles push notifications.
+
+The Flutter app is the client, NOT the security authority.
+
+==================================================
+68. IMPLEMENTATION PROCESS
+==================================================
+
+Do NOT generate everything blindly in one step.
+
+Work in phases.
+
+PHASE 0:
+Inspect project.
+
+Report:
+- current Flutter version
+- current packages
+- current Android configuration
+- current iOS configuration
+- current Firebase configuration
+- current source structure
+- current errors if any
+
+Then propose exact changes.
+
+PHASE 1:
+Clean architecture and foundation.
+
+PHASE 2:
+Firebase Auth + Google Sign-In.
+
+PHASE 3:
+Multi-tenant Firestore schema.
+
+PHASE 4:
+Security Rules.
+
+PHASE 5:
+Cloud Functions/backend.
+
+PHASE 6:
+College onboarding + branding.
+
+PHASE 7:
+Student verification workflow.
+
+PHASE 8:
+Admin/Co-Admin approval system.
+
+PHASE 9:
+Moderator system + ban hierarchy.
+
+PHASE 10:
+Dynamic academic structure.
+
+PHASE 11:
+Timetable.
+
+PHASE 12:
+Student dashboard.
+
+PHASE 13:
+Calendar.
+
+PHASE 14:
+Documents/PDFs + Storage.
+
+PHASE 15:
+Announcements.
+
+PHASE 16:
+FCM notifications.
+
+PHASE 17:
+Daily schedule notification.
+
+PHASE 18:
+One-hour class reminders.
+
+PHASE 19:
+iOS compatibility.
+
+PHASE 20:
+Animations/polish.
+
+PHASE 21:
+Testing/security audit.
+
+PHASE 22:
+Production build preparation.
+
+After each phase:
+
+1. Implement.
+2. Run flutter analyze.
+3. Run tests.
+4. Fix all errors.
+5. Check imports.
+6. Check Firebase configuration.
+7. Check security implications.
+8. Report exactly what changed.
+9. Only then move to the next phase.
+
+==================================================
+69. DO NOT DESTROY EXISTING WORK
+==================================================
+
+Before changing files:
+
+Inspect them.
+
+If something already works:
+preserve it.
+
+If configuration must change:
+explain why.
+
+Never blindly replace:
+
+pubspec.yaml
+android/app/build.gradle.kts
+google-services.json
+firebase_options.dart
+Info.plist
+Podfile
+Gradle files
+
+without inspecting first.
+
+==================================================
+70. FINAL QUALITY REQUIREMENT
+==================================================
+
+The final application must feel like a real production SaaS product.
+
+It must NOT look like:
+
+"Flutter starter app + Firebase"
+
+It should feel like:
+
+"UNEXA — a professional campus platform."
+
+The user experience should be:
+
+Open app
+↓
+Beautiful branded login
+↓
+Google institute authentication
+↓
+Secure verification
+↓
+Approval
+↓
+Smooth onboarding
+↓
+Personalized campus dashboard
+↓
+Today's timetable
+↓
+Announcements
+↓
+Calendar
+↓
+Documents
+↓
+Useful notifications
+
+==================================================
+71. FIRST ACTION
+==================================================
+
+DO NOT start generating huge amounts of code immediately.
+
+FIRST:
+
+Inspect the existing project at:
+
+C:\Users\LOKI\Desktop\unexa
+
+Check:
+
+- pubspec.yaml
+- lib/
+- android/
+- ios/
+- firebase_options.dart
+- google-services.json configuration
+- Android package/application ID
+- MainActivity
+- Firebase initialization
+- existing authentication code
+- existing Firestore code
+- current build errors
+
+Then tell me:
+
+1. What already exists.
+2. What is missing.
+3. What needs to be changed.
+4. Any Firebase Console configuration I must manually perform.
+5. The exact implementation plan.
+
+Then begin Phase 1.
+
+IMPORTANT:
+If you encounter an issue that requires me to configure something manually in Firebase Console, stop at that point and give me exact click-by-click instructions rather than pretending it is already configured.
+
+Do not skip security.
+
+Do not skip iOS.
+
+Do not skip backend authorization.
+
+Do not hard-code college information.
+
+Do not implement attendance.
+
+Build UNEXA as a secure, scalable, polished multi-college SaaS platform.

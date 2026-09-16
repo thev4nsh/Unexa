@@ -1,0 +1,320 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============ Helper functions ============
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function getUserData(collegeId, uid) {
+      return get(/databases/$(database)/documents/colleges/$(collegeId)/users/$(uid)).data;
+    }
+
+    function isOwner(collegeId) {
+      return isAuthenticated() && (
+        request.auth.token.role == 'owner' ||
+        getUserData(collegeId, request.auth.uid).role == 'owner'
+      );
+    }
+
+    function isAdmin(collegeId) {
+      return isAuthenticated() && (
+        isOwner(collegeId) ||
+        request.auth.token.role == 'admin' ||
+        getUserData(collegeId, request.auth.uid).role == 'admin'
+      );
+    }
+
+    function isCoAdmin(collegeId) {
+      return isAuthenticated() && (
+        isAdmin(collegeId) ||
+        request.auth.token.role == 'co_admin' ||
+        getUserData(collegeId, request.auth.uid).role == 'co_admin'
+      );
+    }
+
+    // Any staff member (moderator and above). CRs carry the same
+    // verification powers as moderators.
+    function isModerator(collegeId) {
+      return isAuthenticated() && (
+        isCoAdmin(collegeId) ||
+        request.auth.token.role == 'moderator' ||
+        getUserData(collegeId, request.auth.uid).role == 'moderator' ||
+        request.auth.token.role == 'cr' ||
+        getUserData(collegeId, request.auth.uid).role == 'cr'
+      );
+    }
+
+    function isApprovedMember(collegeId) {
+      return isAuthenticated() && (
+        isModerator(collegeId) ||
+        (getUserData(collegeId, request.auth.uid).collegeId == collegeId &&
+         getUserData(collegeId, request.auth.uid).accountStatus == 'active')
+      );
+    }
+
+    // ============ Ban hierarchy (server-side, cannot be bypassed by the client) ============
+    // Moderator ban  -> any staff can unban
+    // Co-Admin ban   -> Admin or above can unban (co_admin sets level 'moderator' per app logic)
+    // Admin ban      -> only Admin / Owner can unban
+    // Owner ban      -> only Owner can unban
+
+    function banLevel() {
+      return request.resource.data.get('ban', resource.data.get('ban', {})).get('level', 'moderator');
+    }
+
+    function canUnbanTarget(collegeId) {
+      return (resource.data.get('ban', {}).get('level', '') == 'moderator' && isModerator(collegeId)) ||
+             (resource.data.get('ban', {}).get('level', '') == 'admin' && isAdmin(collegeId)) ||
+             (resource.data.get('ban', {}).get('level', '') == 'owner' && isOwner(collegeId));
+    }
+
+    // New bans must match the actor's own authority level
+    function isValidBanAssignment(collegeId) {
+      return (banLevel() == 'moderator' && isModerator(collegeId)) ||
+             (banLevel() == 'admin' && isAdmin(collegeId)) ||
+             (banLevel() == 'owner' && isOwner(collegeId));
+    }
+
+    function isSelfStudentSignup(collegeId, userId) {
+      return isUser(userId) &&
+        request.resource.data.keys().hasOnly([
+          'email',
+          'displayName',
+          'photoUrl',
+          'collegeId',
+          'role',
+          'accountStatus',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        request.resource.data.collegeId == collegeId &&
+        request.resource.data.role == 'student' &&
+        request.resource.data.accountStatus == 'pending' &&
+        request.resource.data.email.lower() == request.auth.token.email.lower();
+    }
+
+    function isSafeSelfProfileUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'departmentId',
+        'departmentName',
+        'batchId',
+        'batchName',
+        'year',
+        'semester',
+        'sectionId',
+        'sectionName',
+        'updatedAt'
+      ]);
+    }
+
+    // Staff moderation writes on a student account.
+    // Role, collegeId and email can NEVER be touched by staff from the client.
+    // Ban hierarchy is enforced server-side here.
+    function isStaffAccountAction(collegeId) {
+      return isModerator(collegeId) &&
+        resource.data.collegeId == collegeId &&
+        // Students, CRs and moderators can be approved/banned/disapproved.
+        resource.data.role in ['student', 'moderator', 'cr'] &&
+        request.resource.data.collegeId == resource.data.collegeId &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.email == resource.data.email &&
+        // 'ban' covers whole-map writes (ban action); dotted paths cover
+        // field-path updates (unban writes ban.isActive etc.).
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'accountStatus',
+          'ban',
+          'ban.isActive',
+          'ban.unbannedByUid',
+          'ban.unbanReason',
+          'ban.updatedAt',
+          'rejectionReason',
+          'updatedAt'
+        ]) &&
+        // Unban: the acting staff must outrank the existing ban
+        (!(resource.data.accountStatus == 'banned' &&
+           request.resource.data.accountStatus == 'active') || canUnbanTarget(collegeId)) &&
+        // New/updated active ban must match the actor's level.
+        // NOTE: safe .get() accessors — direct field access on a missing 'ban'
+        // map errors and would deny approve/reject for never-banned students.
+        (!(request.resource.data.get('ban', {}).get('isActive', false) == true) ||
+         isValidBanAssignment(collegeId)) &&
+        // Disapprove (status -> pending) is an Admin/Co-Admin power; a
+        // moderator can approve/reject/ban but never pull an approval back.
+        (!(request.resource.data.accountStatus == 'pending') || isCoAdmin(collegeId));
+    }
+
+    // Staff role management (Admin/Owner promoting students to moderator/co-admin
+    // or demoting them). Admin/Owner roles themselves can NEVER be set from a client.
+    function isStaffRoleChange(collegeId) {
+      return resource.data.collegeId == collegeId &&
+        // Only these roles may be assigned, and only to accounts that are
+        // currently student/moderator/cr/co_admin (never admin/owner targets).
+        request.resource.data.role in ['student', 'moderator', 'cr', 'co_admin'] &&
+        resource.data.role in ['student', 'moderator', 'cr', 'co_admin'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'role',
+          'updatedAt'
+        ]) &&
+        (
+          // Admin/Owner: full control over student/moderator/cr/co_admin.
+          (
+            isAdmin(collegeId) &&
+            resource.data.role in ['student', 'moderator', 'cr', 'co_admin']
+          ) ||
+          // Co-Admin: student <-> moderator/cr (Mod & CR grants); cannot
+          // grant/revoke co_admin.
+          (
+            isCoAdmin(collegeId) && !isAdmin(collegeId) &&
+            resource.data.role in ['student', 'moderator', 'cr'] &&
+            request.resource.data.role in ['student', 'moderator', 'cr']
+          )
+        );
+    }
+
+    // ============ Colleges ============
+    match /colleges/{collegeId} {
+      allow read: if resource.data.isActive == true || isApprovedMember(collegeId);
+      allow update: if isAdmin(collegeId);
+      allow create, delete: if isAuthenticated() && request.auth.token.role == 'owner';
+
+      // ---- Users ----
+      match /users/{userId} {
+        allow read: if isModerator(collegeId) || isUser(userId);
+        allow update: if (isUser(userId) && isSafeSelfProfileUpdate()) ||
+          isStaffAccountAction(collegeId) ||
+          isStaffRoleChange(collegeId);
+        allow create: if isSelfStudentSignup(collegeId, userId);
+        allow delete: if isAdmin(collegeId);
+      }
+
+      // ---- Verification Requests ----
+      match /verificationRequests/{requestId} {
+        allow read: if isModerator(collegeId) || (isAuthenticated() && resource.data.uid == request.auth.uid);
+        allow create: if isAuthenticated() &&
+          request.resource.data.keys().hasOnly([
+            'uid',
+            'email',
+            'displayName',
+            'photoUrl',
+            'collegeId',
+            'status',
+            'requestedAt'
+          ]) &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.collegeId == collegeId &&
+          request.resource.data.email.lower() == request.auth.token.email.lower() &&
+          request.resource.data.status == 'pending';
+        // Staff actions cannot reassign the request to another user/college
+        allow update: if isModerator(collegeId) &&
+          request.resource.data.uid == resource.data.uid &&
+          request.resource.data.collegeId == resource.data.collegeId &&
+          request.resource.data.email == resource.data.email;
+        // "Remove completely" wipes stale requests from the admin lists.
+        allow delete: if isAdmin(collegeId);
+      }
+
+      // ---- Dynamic academic structures (Admin / Co-Admin manage, members read) ----
+      match /departments/{deptId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      match /programs/{progId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      match /batches/{batchId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      match /sections/{sectionId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      match /subjects/{subjectId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      // ---- Faculty roster (searchable list used by the timetable dialog) ----
+      match /faculties/{facultyId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      match /classes/{classId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      // ---- Timetable ----
+      match /timetable/{entryId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      // ---- Announcements ----
+      match /announcements/{announcementId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      // ---- Calendar events & holidays ----
+      match /calendarEvents/{eventId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      // ---- Official documents ----
+      match /documents/{docId} {
+        allow read: if isApprovedMember(collegeId);
+        allow write: if isCoAdmin(collegeId);
+      }
+
+      // ---- Audit logs: append-only ----
+      match /auditLogs/{logId} {
+        allow read: if isCoAdmin(collegeId);
+        allow create: if isModerator(collegeId) &&
+          request.resource.data.actorUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ---- App update config (global, read-only for signed-in users) ----
+    // Managed via the Firebase Console; the app only reads it.
+    match /config/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // ---- Global user index (fast startup tenant routing) ----
+    match /users/{userId} {
+      allow read: if isUser(userId);
+      allow create: if request.resource.data.keys().hasOnly(['collegeId', 'accountStatus', 'updatedAt']) &&
+        (
+          (isUser(userId) && request.resource.data.accountStatus == 'pending') ||
+          isModerator(request.resource.data.collegeId)
+        );
+      allow update: if request.resource.data.keys().hasOnly(['collegeId', 'accountStatus', 'updatedAt']) &&
+        (
+          (isUser(userId) &&
+            request.resource.data.accountStatus == resource.data.accountStatus &&
+            request.resource.data.collegeId == resource.data.collegeId) ||
+          isModerator(request.resource.data.collegeId)
+        );
+      allow delete: if resource.data.collegeId is string &&
+        isAdmin(resource.data.collegeId);
+    }
+  }
+}
